@@ -78,22 +78,44 @@ const content = "hello world!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 const passphrase = "top secret";
 
 const dest_filename = path.resolve("zip_encrypted.bin");
-
-//encrypt_file(dest_filename, content, privatekey, passphrase);
-
-try {
-    console.log(decrypt_file(dest_filename, publickey, passphrase));
-} catch (err) {
-    console.log(err);
-}
-
-
-
-function encrypt_file(filename, content, privatekey, passphrase) {
-  var fd = fs.openSync(filename, "w");
+const dest_filename2 = path.resolve("zip_encrypted1.bin");
+const dest_filename3 = path.resolve("zip_encrypted3.bin");
 
   let key = crypto.randomBytes(32);
   let iv = crypto.randomBytes(16);
+
+encrypt_file(dest_filename, content, privatekey, passphrase, key, iv);
+
+encrypt_file_stream(dest_filename2, content, privatekey, passphrase, key, iv);
+
+encrypt_file_stream2(dest_filename3, content, privatekey, passphrase, key, iv)
+
+// try {
+//     console.log(decrypt_file(dest_filename, publickey, passphrase));
+
+    
+// } catch (err) {
+//     console.log(err);
+// }
+
+// try {
+//   console.log(decrypt_file(dest_filename2, publickey, passphrase));
+
+
+  
+// } catch (err) {
+//   console.log(err);
+// }
+
+
+
+
+
+function encrypt_file(filename, content, privatekey, passphrase, key, iv) {
+  var fd = fs.openSync(filename, "w");
+
+  // let key = crypto.randomBytes(32);
+  // let iv = crypto.randomBytes(16);
 
   let encrypted_key_iv = crypto.privateEncrypt(
     {
@@ -113,6 +135,86 @@ function encrypt_file(filename, content, privatekey, passphrase) {
   ]);
   fs.writeSync(fd, encrypted_output, "binary");
   fs.closeSync(fd);
+}
+
+
+// 使用了 stream 和 pipe，使异步函数，没加密完再解密会出错
+function encrypt_file_stream(filename, content, privatekey, passphrase, key, iv) {
+  var fd = fs.openSync(filename, "w");
+
+  // let key = crypto.randomBytes(32);
+  // let iv = crypto.randomBytes(16);
+
+  let encrypted_key_iv = crypto.privateEncrypt(
+    {
+      key: privatekey,
+      passphrase: passphrase,
+    },
+    Buffer.concat([key, iv])
+  );
+
+  fs.writeSync(fd, encrypted_key_iv);
+  
+  let w = fs.createWriteStream(filename, {encoding: 'binary', flags: 'r+', fd: fd});  
+
+
+  let zip = zlib.createDeflateRaw(); 
+  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+  zip.end(content).pipe(cipher).pipe(w);  
+  
+  
+
+  // let compressBuf = zlib.deflateRawSync(content);
+  
+  // let encrypted_output = Buffer.concat([
+  //   cipher.update(compressBuf, "binary"),
+  //   cipher.final(),
+  // ]);
+  // fs.writeSync(fd, encrypted_output, "binary");
+  // fs.closeSync(fd);
+  fs.closeSync(fd);
+
+  
+}
+
+
+function encrypt_file_stream2(filename, content, privatekey, passphrase, key, iv) {
+  let w = fs.createWriteStream(filename, {encoding: 'binary', flags: 'w'});  
+
+  // let key = crypto.randomBytes(32);
+  // let iv = crypto.randomBytes(16);
+
+  let encrypted_key_iv = crypto.privateEncrypt(
+    {
+      key: privatekey,
+      passphrase: passphrase,
+    },
+    Buffer.concat([key, iv])
+  );
+
+  w.write(encrypted_key_iv);
+  // w.writeSync(fd, encrypted_key_iv);
+  
+  // let w = fs.createWriteStream(filename, {encoding: 'binary', flags: 'r+', fd: fd});  
+
+
+  let zip = zlib.createDeflateRaw(); 
+  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+  zip.end(content).pipe(cipher).pipe(w);  
+  
+  
+
+  // let compressBuf = zlib.deflateRawSync(content);
+  
+  // let encrypted_output = Buffer.concat([
+  //   cipher.update(compressBuf, "binary"),
+  //   cipher.final(),
+  // ]);
+  // fs.writeSync(fd, encrypted_output, "binary");
+  // fs.closeSync(fd);
+  //fs.closeSync(fd);
+
+  
 }
 
 function decrypt_file(filename, publickey, passphrase) {
